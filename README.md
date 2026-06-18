@@ -76,9 +76,11 @@ cp print-orchestrator/.env.example print-orchestrator/.env   # OCTOPRINT_*, SLIC
 cd print-orchestrator && docker compose up -d --build
 ```
 It polls your n8n queue, slices each job, prints it, and reports progress. Open
-the dashboard at **http://localhost:4848**. See
-[`print-orchestrator/`](print-orchestrator/README.md) for the n8n + slicer
-contracts.
+the dashboard at **http://localhost:4848**.
+
+📖 **[Print-farm guide](docs/print-farm.md)** — the full walkthrough: the stack,
+the data flow, the n8n form + queue setup, the slicer, and wiring it all so a
+customer can fill out a form and a printer prints their model.
 
 ## Dashboard
 
