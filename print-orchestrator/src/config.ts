@@ -25,6 +25,13 @@ export interface Config {
 	printTimeoutMs: number;
 	allowPrivateFetch: boolean;
 
+	s3Endpoint: string | null;
+	s3AccessKeyId: string;
+	s3SecretAccessKey: string;
+	s3Bucket: string;
+	s3Region: string;
+	s3ForcePathStyle: boolean;
+
 	dashboardEnabled: boolean;
 	dashboardPort: number;
 	dashboardUsername: string;
@@ -84,6 +91,13 @@ export function loadConfig(): Config {
 		printPollIntervalMs: int('PRINT_POLL_INTERVAL_MS', 5000),
 		printTimeoutMs: int('PRINT_TIMEOUT_MS', 86_400_000),
 		allowPrivateFetch: bool('ALLOW_PRIVATE_FETCH', true),
+
+		s3Endpoint: str('S3_ENDPOINT') || null,
+		s3AccessKeyId: str('S3_ACCESS_KEY_ID'),
+		s3SecretAccessKey: str('S3_SECRET_ACCESS_KEY'),
+		s3Bucket: str('S3_BUCKET'),
+		s3Region: str('S3_REGION', 'us-east-1'),
+		s3ForcePathStyle: bool('S3_FORCE_PATH_STYLE', true),
 
 		dashboardEnabled: bool('DASHBOARD_ENABLED', true),
 		dashboardPort: int('DASHBOARD_PORT', 4848),

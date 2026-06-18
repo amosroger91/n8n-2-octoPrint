@@ -70,6 +70,7 @@ function mapRowToJob(row: any): PrintJob | null {
 	if (!id) return null;
 	return {
 		id,
+		sourceUrl: row.sourceUrl ?? row.source ?? undefined,
 		stlUrl: row.stlUrl ?? row.modelUrl ?? row.stl ?? row.url ?? undefined,
 		gcodeUrl: row.gcodeUrl ?? undefined,
 		name: row.name ?? row.title ?? row.fileName ?? undefined,

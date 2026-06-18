@@ -12,6 +12,7 @@ import { N8nQueue } from './n8nQueue';
 import { Ledger, RecordingQueue } from './ledger';
 import { PrintPipeline } from './worker';
 import { QueuePoller } from './poller';
+import { S3Client } from './s3';
 import { SessionManager } from './auth/session';
 import { AuthRegistry } from './auth/registry';
 import { LocalProvider, hashPassword } from './auth/local';
@@ -54,7 +55,18 @@ async function main(): Promise<void> {
 	const slicer = new HttpSlicer(cfg);
 	const ledger = new Ledger();
 	const queueAdapter = new RecordingQueue(new N8nQueue(cfg, log), ledger);
-	const pipeline = new PrintPipeline(cfg, log, octo, slicer, queueAdapter);
+	const s3 = cfg.s3Endpoint
+		? new S3Client({
+				endpoint: cfg.s3Endpoint,
+				region: cfg.s3Region,
+				accessKeyId: cfg.s3AccessKeyId,
+				secretAccessKey: cfg.s3SecretAccessKey,
+				bucket: cfg.s3Bucket,
+				forcePathStyle: cfg.s3ForcePathStyle,
+			})
+		: undefined;
+	log.info(s3 ? `S3 bucket: ${cfg.s3Bucket} @ ${cfg.s3Endpoint}` : 'S3: not configured (sources via http(s) only)');
+	const pipeline = new PrintPipeline(cfg, log, octo, slicer, queueAdapter, s3);
 
 	const version = await octo.getVersion().catch(() => ({ ok: false, version: null }));
 	log.info(version.ok ? `OctoPrint reachable (v${version.version})` : 'WARNING: OctoPrint not reachable yet — will retry per job');

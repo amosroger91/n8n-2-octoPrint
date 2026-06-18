@@ -2,6 +2,12 @@
 export interface PrintJob {
 	/** Stable id (the print-queue row id). Used as the BullMQ job id for dedup. */
 	id: string;
+	/**
+	 * The model source: an S3 object key / `s3://bucket/key`, or an http(s) URL.
+	 * `.gcode` is printed directly; anything else is sliced. S3 objects are
+	 * deleted after they're safely on OctoPrint.
+	 */
+	sourceUrl?: string;
 	/** URL to the STL/3MF to slice. */
 	stlUrl?: string;
 	/** Pre-sliced gcode by URL — skips slicing. */

@@ -4,9 +4,19 @@ import type { PrintJob, JobStatus, SliceStats, StatusUpdate } from './job';
 import type { OctoPrintClient } from './octoprint';
 import type { Slicer } from './slicer';
 import type { QueueAdapter } from './n8nQueue';
+import type { S3Client } from './s3';
+import { parseS3Ref } from './s3';
 import { guardedFetchBuffer } from './safefetch';
 
-/** Runs one print job through slice -> upload -> print -> monitor, reporting status. */
+interface ResolvedModel {
+	bytes: Buffer;
+	isGcode: boolean;
+	name: string;
+	/** Removes the staged source (e.g. an ephemeral S3 object) once it's safely on OctoPrint. */
+	cleanup?: () => Promise<void>;
+}
+
+/** Runs one print job through resolve -> slice -> upload -> print -> monitor, reporting status. */
 export class PrintPipeline {
 	constructor(
 		private cfg: Config,
@@ -14,6 +24,7 @@ export class PrintPipeline {
 		private octo: OctoPrintClient,
 		private slicer: Slicer,
 		private queue: QueueAdapter,
+		private s3?: S3Client,
 	) {}
 
 	private status(id: string, status: JobStatus, extra: Partial<StatusUpdate> = {}): Promise<void> {
@@ -26,27 +37,48 @@ export class PrintPipeline {
 		});
 	}
 
+	/** Fetch the model bytes from S3 (any compatible bucket) or an http(s) URL, or inline gcode. */
+	private async resolveModel(job: PrintJob): Promise<ResolvedModel> {
+		if (job.gcodeBase64) {
+			return { bytes: Buffer.from(job.gcodeBase64, 'base64'), isGcode: true, name: job.name ?? `${job.id}.gcode` };
+		}
+		const source = job.sourceUrl ?? job.gcodeUrl ?? job.stlUrl;
+		if (!source) throw new Error('job has no sourceUrl / stlUrl / gcodeUrl / gcodeBase64');
+
+		const name = job.name ?? basename(source) ?? job.id;
+		const isGcode = Boolean(job.gcodeUrl) || /\.gcode(\?|$)/i.test(source) || /\.gcode$/i.test(name);
+
+		if (this.s3) {
+			const ref = parseS3Ref(source, this.cfg.s3Bucket);
+			if (ref) {
+				this.log.info(`job ${job.id}: fetching "${ref.key}" from bucket ${this.cfg.s3Bucket}`);
+				const bytes = await this.s3.getObject(ref.key);
+				return { bytes, isGcode, name, cleanup: () => this.s3!.deleteObject(ref.key) };
+			}
+		}
+
+		const bytes = await guardedFetchBuffer(source, { allowPrivate: this.cfg.allowPrivateFetch });
+		return { bytes, isGcode, name };
+	}
+
 	async run(job: PrintJob): Promise<void> {
 		this.log.info(`job ${job.id}: claimed`);
 		await this.status(job.id, 'claimed', { message: `picked up by ${this.cfg.printerId}` });
 
-		// 1. obtain gcode (pre-sliced override, or slice the STL)
+		// 1. obtain the model, slicing if it isn't already gcode
+		const model = await this.resolveModel(job);
 		let gcode: Buffer;
 		let filename: string;
 		let stats: SliceStats | undefined;
 
-		if (job.gcodeBase64) {
-			gcode = Buffer.from(job.gcodeBase64, 'base64');
-			filename = job.name ?? `${job.id}.gcode`;
-		} else if (job.gcodeUrl) {
-			gcode = await guardedFetchBuffer(job.gcodeUrl, { allowPrivate: this.cfg.allowPrivateFetch });
-			filename = job.name ?? basename(job.gcodeUrl) ?? `${job.id}.gcode`;
-		} else if (job.stlUrl) {
+		if (model.isGcode) {
+			gcode = model.bytes;
+			filename = model.name;
+		} else {
 			await this.status(job.id, 'slicing');
-			this.log.info(`job ${job.id}: slicing ${job.stlUrl}`);
-			const stl = await guardedFetchBuffer(job.stlUrl, { allowPrivate: this.cfg.allowPrivateFetch });
-			const r = await this.slicer.slice(stl, {
-				filename: job.name ?? `${job.id}.stl`,
+			this.log.info(`job ${job.id}: slicing ${model.name} (${model.bytes.length} bytes)`);
+			const r = await this.slicer.slice(model.bytes, {
+				filename: model.name,
 				profile: job.profile ?? this.cfg.slicerProfile,
 				material: job.material,
 			});
@@ -54,16 +86,24 @@ export class PrintPipeline {
 			filename = r.filename;
 			stats = r.stats;
 			this.log.info(`job ${job.id}: sliced -> ${stats.filamentUsedGrams ?? '?'}g, ${stats.printTimeHours ?? '?'}h`);
-		} else {
-			throw new Error('job has no stlUrl, gcodeUrl, or gcodeBase64');
 		}
 
 		if (!filename.toLowerCase().endsWith('.gcode')) filename += '.gcode';
 
-		// 2. upload
+		// 2. upload to OctoPrint
 		await this.status(job.id, 'uploading', { stats });
 		this.log.info(`job ${job.id}: uploading ${filename} (${gcode.length} bytes)`);
 		const stored = await this.octo.upload(filename, gcode);
+
+		// the source is now safely on OctoPrint — drop the ephemeral staged copy
+		if (model.cleanup) {
+			try {
+				await model.cleanup();
+				this.log.info(`job ${job.id}: removed staged source from the bucket`);
+			} catch (err: any) {
+				this.log.warn(`job ${job.id}: bucket cleanup failed: ${err.message}`);
+			}
+		}
 
 		// 3. start the print
 		await this.status(job.id, 'printing', { progress: 0, stats });
@@ -103,6 +143,8 @@ function basename(url: string): string | null {
 		const p = new URL(url).pathname.split('/').pop();
 		return p || null;
 	} catch {
-		return null;
+		// scheme-less (e.g. an S3 key): take the last path segment
+		const p = url.split('?')[0].split('/').pop();
+		return p || null;
 	}
 }
