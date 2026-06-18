@@ -40,7 +40,10 @@ async function main(): Promise<void> {
 	const cfg = loadConfig();
 	const log = new Logger(cfg.logLevel);
 
-	if (cfg.allowInsecureTls) process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
+	if (cfg.allowInsecureTls) {
+		process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
+		log.warn('OCTOPRINT_ALLOW_INSECURE_TLS=true disables TLS verification PROCESS-WIDE — prefer plain http for LAN OctoPrint.');
+	}
 
 	log.info(`print-orchestrator starting (printer: ${cfg.printerId})`);
 	log.info(`OctoPrint: ${cfg.octoprintUrl}   Redis: ${cfg.redisUrl}`);

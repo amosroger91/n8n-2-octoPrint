@@ -1,5 +1,6 @@
 import type { Config } from './config';
 import type { SliceStats } from './job';
+import { assertFetchAllowed } from './safefetch';
 
 export interface SliceResult {
 	gcode: Buffer;
@@ -54,7 +55,8 @@ export class HttpSlicer implements Slicer {
 			if (body.gcodeBase64) gcode = Buffer.from(body.gcodeBase64, 'base64');
 			else if (typeof body.gcode === 'string') gcode = Buffer.from(body.gcode, 'utf8');
 			else if (body.gcodeUrl) {
-				const g = await fetch(body.gcodeUrl, { headers });
+				await assertFetchAllowed(body.gcodeUrl, { allowPrivate: this.cfg.allowPrivateFetch });
+				const g = await fetch(body.gcodeUrl, { headers, redirect: 'error' });
 				gcode = Buffer.from(await g.arrayBuffer());
 			} else throw new Error('Slicer JSON had no gcode / gcodeBase64 / gcodeUrl');
 		} else {

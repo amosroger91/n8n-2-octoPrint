@@ -16,6 +16,10 @@ export function verifyPassword(password: string, stored: string): boolean {
 	return dk.length === expected.length && timingSafeEqual(dk, expected);
 }
 
+// Precomputed hash so verify() always runs scrypt, even for an unknown
+// username — prevents user enumeration via response timing.
+const DUMMY_HASH = hashPassword(randomBytes(16).toString('hex'));
+
 /** The built-in username/password provider, backed by config. */
 export class LocalProvider implements PasswordProvider {
 	readonly id = 'local';
@@ -28,9 +32,8 @@ export class LocalProvider implements PasswordProvider {
 	) {}
 
 	async verify(username: string, password: string): Promise<AuthUser | null> {
-		if (username !== this.username) return null;
-		return verifyPassword(password, this.passwordHash)
-			? { id: username, name: username, provider: 'local' }
-			: null;
+		const matches = username === this.username;
+		const ok = verifyPassword(password, matches ? this.passwordHash : DUMMY_HASH);
+		return matches && ok ? { id: username, name: username, provider: 'local' } : null;
 	}
 }

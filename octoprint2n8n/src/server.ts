@@ -137,6 +137,9 @@ export class BridgeServer {
 		octoPath: string,
 		search: string,
 	): Promise<void> {
+		if (octoPath.includes('..') || octoPath.includes('\\')) {
+			return this.json(res, 400, { error: 'invalid path' });
+		}
 		const root = octoPath.split('/')[0];
 		if (!ALLOWED_ROOTS.has(root)) {
 			return this.json(res, 403, { error: `path not allowed: ${root}` });

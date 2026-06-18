@@ -4,6 +4,7 @@ import type { PrintJob, JobStatus, SliceStats, StatusUpdate } from './job';
 import type { OctoPrintClient } from './octoprint';
 import type { Slicer } from './slicer';
 import type { QueueAdapter } from './n8nQueue';
+import { guardedFetchBuffer } from './safefetch';
 
 /** Runs one print job through slice -> upload -> print -> monitor, reporting status. */
 export class PrintPipeline {
@@ -38,12 +39,12 @@ export class PrintPipeline {
 			gcode = Buffer.from(job.gcodeBase64, 'base64');
 			filename = job.name ?? `${job.id}.gcode`;
 		} else if (job.gcodeUrl) {
-			gcode = await fetchToBuffer(job.gcodeUrl);
+			gcode = await guardedFetchBuffer(job.gcodeUrl, { allowPrivate: this.cfg.allowPrivateFetch });
 			filename = job.name ?? basename(job.gcodeUrl) ?? `${job.id}.gcode`;
 		} else if (job.stlUrl) {
 			await this.status(job.id, 'slicing');
 			this.log.info(`job ${job.id}: slicing ${job.stlUrl}`);
-			const stl = await fetchToBuffer(job.stlUrl);
+			const stl = await guardedFetchBuffer(job.stlUrl, { allowPrivate: this.cfg.allowPrivateFetch });
 			const r = await this.slicer.slice(stl, {
 				filename: job.name ?? `${job.id}.stl`,
 				profile: job.profile ?? this.cfg.slicerProfile,
@@ -95,12 +96,6 @@ export class PrintPipeline {
 		// Non-'done' prints are terminal; throwing lets BullMQ record the failure.
 		if (result !== 'cancelled') throw new Error(`print ${result}`);
 	}
-}
-
-async function fetchToBuffer(url: string): Promise<Buffer> {
-	const res = await fetch(url);
-	if (!res.ok) throw new Error(`fetch ${url} failed: HTTP ${res.status}`);
-	return Buffer.from(await res.arrayBuffer());
 }
 
 function basename(url: string): string | null {

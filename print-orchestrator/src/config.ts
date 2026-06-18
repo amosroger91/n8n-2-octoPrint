@@ -23,6 +23,7 @@ export interface Config {
 	concurrency: number;
 	printPollIntervalMs: number;
 	printTimeoutMs: number;
+	allowPrivateFetch: boolean;
 
 	dashboardEnabled: boolean;
 	dashboardPort: number;
@@ -82,6 +83,7 @@ export function loadConfig(): Config {
 		concurrency: int('CONCURRENCY', 1),
 		printPollIntervalMs: int('PRINT_POLL_INTERVAL_MS', 5000),
 		printTimeoutMs: int('PRINT_TIMEOUT_MS', 86_400_000),
+		allowPrivateFetch: bool('ALLOW_PRIVATE_FETCH', true),
 
 		dashboardEnabled: bool('DASHBOARD_ENABLED', true),
 		dashboardPort: int('DASHBOARD_PORT', 4848),
