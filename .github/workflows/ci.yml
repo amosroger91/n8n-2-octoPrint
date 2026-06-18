@@ -12,7 +12,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        dir: [n8n-nodes-octoprint, octoprint2n8n, octoprint-emulator]
+        dir: [n8n-nodes-octoprint, octoprint2n8n, octoprint-emulator, print-orchestrator]
     defaults:
       run:
         working-directory: ${{ matrix.dir }}
@@ -43,7 +43,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        ctx: [octoprint2n8n, octoprint-emulator]
+        ctx: [octoprint2n8n, octoprint-emulator, print-orchestrator]
     steps:
       - uses: actions/checkout@v4
       - run: docker build -t ${{ matrix.ctx }}:ci ./${{ matrix.ctx }}

@@ -9,6 +9,7 @@ This repo ships two cooperating pieces:
 | --- | --- | --- |
 | **`n8n-nodes-octoprint`** | An n8n community node package: an **OctoPrint Trigger** node (printer events → workflow) and an **OctoPrint** action node (commands → printer). | [`n8n-nodes-octoprint/`](n8n-nodes-octoprint) |
 | **`octoprint2n8n`** | The **client / bridge**: a small Node.js service (Docker image) that points at your OctoPrint API, streams its events up to n8n, and relays n8n's commands back down to the printer. | [`octoprint2n8n/`](octoprint2n8n) |
+| **`print-orchestrator`** | The **print-farm worker** (Docker image): pulls jobs from an n8n queue, auto-slices the model, prints it on OctoPrint, and reports progress back — backed by a local Redis/BullMQ queue. Run it on the box next to a printer. | [`print-orchestrator/`](print-orchestrator) |
 
 Everything is Node.js / TypeScript. MIT licensed.
 
@@ -125,9 +126,10 @@ checks (emulator, real OctoPrint, and full-stack-through-n8n).
 n8n-2-octoPrint/
 ├── n8n-nodes-octoprint/   # the n8n community node package (Trigger + Action)
 ├── octoprint2n8n/         # the bridge / client (Docker image)
+├── print-orchestrator/    # the print-farm worker (n8n queue -> slice -> print)
 ├── octoprint-emulator/    # a virtual OctoPrint for testing without a printer
-├── scripts/e2e.mjs        # end-to-end smoke test (emulator + bridge)
-├── docker-compose.yml     # runs the bridge (+ emulator/n8n profiles)
+├── demo/                  # one-command full stack (OctoPrint + bridge + n8n)
+├── scripts/               # e2e + real-OctoPrint + full-stack verification
 └── .github/workflows/     # CI: builds all packages, runs e2e, builds images
 ```
 

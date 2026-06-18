@@ -1,0 +1,37 @@
+{
+  "name": "print-orchestrator",
+  "version": "0.1.0",
+  "description": "Pulls print jobs from n8n, auto-slices, and drives prints on OctoPrint through a local Redis (BullMQ) queue.",
+  "keywords": [
+    "octoprint",
+    "n8n",
+    "3d-printing",
+    "print-farm",
+    "bullmq",
+    "redis"
+  ],
+  "license": "MIT",
+  "homepage": "https://github.com/amosroger91/n8n-2-octoPrint",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/amosroger91/n8n-2-octoPrint.git",
+    "directory": "print-orchestrator"
+  },
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "dev": "tsc && node dist/index.js"
+  },
+  "dependencies": {
+    "bullmq": "^5.0.0",
+    "dotenv": "^16.4.5"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.0",
+    "typescript": "^5.4.0"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
