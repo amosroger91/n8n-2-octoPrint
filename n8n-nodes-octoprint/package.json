@@ -1,0 +1,54 @@
+{
+  "name": "n8n-nodes-octoprint",
+  "version": "0.1.0",
+  "description": "n8n community node for OctoPrint — trigger on printer events and send commands, via the octoprint2n8n bridge or directly.",
+  "keywords": [
+    "n8n-community-node-package",
+    "n8n",
+    "octoprint",
+    "3d-printing",
+    "3d-printer"
+  ],
+  "license": "MIT",
+  "homepage": "https://github.com/amosroger91/n8n-2-octoPrint",
+  "author": {
+    "name": "Roger Hernandez",
+    "url": "https://github.com/amosroger91"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/amosroger91/n8n-2-octoPrint.git",
+    "directory": "n8n-nodes-octoprint"
+  },
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc && node gulpfile.js",
+    "dev": "tsc --watch",
+    "prepublishOnly": "npm run build"
+  },
+  "files": [
+    "dist"
+  ],
+  "n8n": {
+    "n8nNodesApiVersion": 1,
+    "credentials": [
+      "dist/credentials/OctoPrintApi.credentials.js",
+      "dist/credentials/OctoPrintBridgeApi.credentials.js"
+    ],
+    "nodes": [
+      "dist/nodes/OctoPrint/OctoPrint.node.js",
+      "dist/nodes/OctoPrint/OctoPrintTrigger.node.js"
+    ]
+  },
+  "peerDependencies": {
+    "n8n-workflow": "*"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.0",
+    "n8n-workflow": "^1.0.0",
+    "typescript": "^5.4.0"
+  },
+  "engines": {
+    "node": ">=20.15"
+  }
+}

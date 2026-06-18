@@ -1,0 +1,39 @@
+# octoprint2n8n bridge — connects an OctoPrint instance to n8n.
+#
+#   1. cp octoprint2n8n/.env.example octoprint2n8n/.env  and fill it in
+#   2. docker compose up -d --build
+#
+# If OctoPrint is only reachable on the Docker host's LAN (common for octopi.local),
+# uncomment `network_mode: host` and remove the `ports:` block.
+
+services:
+  octoprint2n8n:
+    build: ./octoprint2n8n
+    image: octoprint2n8n:latest
+    container_name: octoprint2n8n
+    restart: unless-stopped
+    env_file:
+      - ./octoprint2n8n/.env
+    ports:
+      - "5252:5252"
+    # network_mode: host
+
+  # ---------------------------------------------------------------------------
+  # Optional: a local n8n for testing. Start it with:
+  #   docker compose --profile testing up -d
+  # ---------------------------------------------------------------------------
+  n8n:
+    image: docker.n8n.io/n8nio/n8n:latest
+    profiles: ["testing"]
+    container_name: n8n
+    restart: unless-stopped
+    ports:
+      - "5678:5678"
+    environment:
+      - N8N_SECURE_COOKIE=false
+      - N8N_COMMUNITY_PACKAGES_ALLOW_TOOL_USAGE=true
+    volumes:
+      - n8n_data:/home/node/.n8n
+
+volumes:
+  n8n_data:

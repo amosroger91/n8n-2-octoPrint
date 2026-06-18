@@ -1,0 +1,36 @@
+{
+  "name": "octoprint2n8n",
+  "version": "0.1.0",
+  "description": "Bridge that streams OctoPrint events to n8n and relays n8n commands back to OctoPrint.",
+  "keywords": [
+    "octoprint",
+    "n8n",
+    "3d-printing",
+    "bridge"
+  ],
+  "license": "MIT",
+  "homepage": "https://github.com/amosroger91/n8n-2-octoPrint",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/amosroger91/n8n-2-octoPrint.git",
+    "directory": "octoprint2n8n"
+  },
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "dev": "tsc && node dist/index.js"
+  },
+  "dependencies": {
+    "dotenv": "^16.4.5",
+    "sockjs-client": "^1.6.1"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.0",
+    "@types/sockjs-client": "^1.5.4",
+    "typescript": "^5.4.0"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

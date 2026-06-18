@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 60 60" fill="none">
+  <rect x="2" y="2" width="56" height="56" rx="12" fill="#13c100"/>
+  <!-- printer frame -->
+  <rect x="14" y="13" width="32" height="22" rx="2" fill="none" stroke="#ffffff" stroke-width="2.5"/>
+  <!-- gantry / X axis -->
+  <line x1="14" y1="22" x2="46" y2="22" stroke="#ffffff" stroke-width="2.5"/>
+  <!-- print head -->
+  <rect x="27" y="20.5" width="6" height="5" rx="1" fill="#ffffff"/>
+  <polygon points="30,25.5 28.5,28 31.5,28" fill="#ffffff"/>
+  <!-- print bed -->
+  <line x1="18" y1="33" x2="42" y2="33" stroke="#ffffff" stroke-width="2.5"/>
+  <!-- link / flow nodes to n8n -->
+  <circle cx="17" cy="46" r="3.5" fill="#ffffff"/>
+  <circle cx="43" cy="46" r="3.5" fill="#ffffff"/>
+  <line x1="20.5" y1="46" x2="39.5" y2="46" stroke="#ffffff" stroke-width="2.5" stroke-dasharray="3 3"/>
+</svg>
