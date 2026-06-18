@@ -1,16 +1,40 @@
 import dotenv from 'dotenv';
 dotenv.config();
 
+import { randomBytes } from 'node:crypto';
 import { Queue, Worker } from 'bullmq';
 import { QUEUE_NAME, redisConnection } from './queue';
-import { loadConfig } from './config';
+import { loadConfig, type Config } from './config';
 import { Logger } from './logger';
 import { OctoPrintClient } from './octoprint';
 import { HttpSlicer } from './slicer';
 import { N8nQueue } from './n8nQueue';
+import { Ledger, RecordingQueue } from './ledger';
 import { PrintPipeline } from './worker';
 import { QueuePoller } from './poller';
+import { SessionManager } from './auth/session';
+import { AuthRegistry } from './auth/registry';
+import { LocalProvider, hashPassword } from './auth/local';
+import { DashboardServer } from './dashboard/server';
 import type { PrintJob } from './job';
+
+/** Build the auth registry: the built-in local provider, plus any you add here. */
+function buildAuth(cfg: Config, log: Logger): AuthRegistry {
+	const secret = cfg.sessionSecret ?? randomBytes(32).toString('hex');
+	if (!cfg.sessionSecret) log.warn('SESSION_SECRET not set — using an ephemeral one (logins reset on restart)');
+
+	let password = cfg.dashboardPassword;
+	if (!password) {
+		password = randomBytes(9).toString('base64url');
+		log.warn(`Dashboard login (generated): ${cfg.dashboardUsername} / ${password}   — set DASHBOARD_PASSWORD to keep it`);
+	}
+
+	const registry = new AuthRegistry(new SessionManager(secret));
+	registry.register(new LocalProvider(cfg.dashboardUsername, hashPassword(password)));
+	// Add an external provider by implementing OAuthProvider and registering it:
+	//   registry.register(new GoogleOAuthProvider({ clientId, clientSecret }));
+	return registry;
+}
 
 async function main(): Promise<void> {
 	const cfg = loadConfig();
@@ -25,7 +49,8 @@ async function main(): Promise<void> {
 	const connection = redisConnection(cfg.redisUrl);
 	const octo = new OctoPrintClient(cfg);
 	const slicer = new HttpSlicer(cfg);
-	const queueAdapter = new N8nQueue(cfg, log);
+	const ledger = new Ledger();
+	const queueAdapter = new RecordingQueue(new N8nQueue(cfg, log), ledger);
 	const pipeline = new PrintPipeline(cfg, log, octo, slicer, queueAdapter);
 
 	const version = await octo.getVersion().catch(() => ({ ok: false, version: null }));
@@ -45,11 +70,20 @@ async function main(): Promise<void> {
 	const poller = new QueuePoller(cfg, log, queueAdapter, bull);
 	poller.start();
 
+	let dashboard: DashboardServer | null = null;
+	if (cfg.dashboardEnabled) {
+		dashboard = new DashboardServer(cfg, log, buildAuth(cfg, log), octo, bull, ledger);
+		dashboard.start();
+	} else {
+		log.info('dashboard disabled (DASHBOARD_ENABLED=false)');
+	}
+
 	log.info(`worker running (concurrency ${cfg.concurrency}) on queue "${QUEUE_NAME}"`);
 
 	const shutdown = async (signal: string): Promise<void> => {
 		log.info(`${signal} — shutting down`);
 		poller.stop();
+		dashboard?.stop();
 		await worker.close();
 		await bull.close();
 		process.exit(0);

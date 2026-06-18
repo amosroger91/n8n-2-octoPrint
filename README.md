@@ -1,124 +1,129 @@
 # n8n-2-octoPrint
 
-Connect an [OctoPrint](https://octoprint.org/) 3D printer to a self-hosted
-[n8n](https://n8n.io/) instance — **both directions**, no cloud in between.
+**Connect [OctoPrint](https://octoprint.org/) 3D printers to self-hosted
+[n8n](https://n8n.io/) — both directions — and run an automated print farm on
+top of it.** All Node.js / TypeScript, all self-hostable, no cloud in between.
+MIT licensed.
 
-This repo ships two cooperating pieces:
+It does two related things:
+
+1. **A two-way bridge between OctoPrint and n8n** — printer events trigger n8n
+   workflows, and n8n workflows send commands back to the printer.
+2. **A print-farm orchestrator** — pull jobs from an n8n queue, auto-slice the
+   model, print it on OctoPrint, and report progress back — with a local status
+   dashboard and pluggable auth.
+
+You can use either half on its own.
+
+## Components
 
 | Component | What it is | Lives in |
 | --- | --- | --- |
-| **`n8n-nodes-octoprint`** | An n8n community node package: an **OctoPrint Trigger** node (printer events → workflow) and an **OctoPrint** action node (commands → printer). | [`n8n-nodes-octoprint/`](n8n-nodes-octoprint) |
-| **`octoprint2n8n`** | The **client / bridge**: a small Node.js service (Docker image) that points at your OctoPrint API, streams its events up to n8n, and relays n8n's commands back down to the printer. | [`octoprint2n8n/`](octoprint2n8n) |
-| **`print-orchestrator`** | The **print-farm worker** (Docker image): pulls jobs from an n8n queue, auto-slices the model, prints it on OctoPrint, and reports progress back — backed by a local Redis/BullMQ queue. Run it on the box next to a printer. | [`print-orchestrator/`](print-orchestrator) |
+| **`n8n-nodes-octoprint`** | n8n community node package: an **OctoPrint Trigger** node (printer events → workflow) and an **OctoPrint** action node (commands → printer), plus credentials. | [`n8n-nodes-octoprint/`](n8n-nodes-octoprint) |
+| **`octoprint2n8n`** | The **bridge**: a Node service (Docker image) that points at an OctoPrint API, streams its events up to n8n (HMAC-signed), and relays n8n's commands back down via an authenticated proxy. | [`octoprint2n8n/`](octoprint2n8n) |
+| **`print-orchestrator`** | The **print-farm worker** (Docker image): pulls jobs from an n8n queue, auto-slices, prints on OctoPrint, reports progress — backed by a local Redis/BullMQ queue, with a status **dashboard** + pluggable auth. | [`print-orchestrator/`](print-orchestrator) |
+| **`octoprint-emulator`** | A **virtual OctoPrint** (REST + SockJS) that simulates a print, so you can develop and test the whole thing with no printer. | [`octoprint-emulator/`](octoprint-emulator) |
 
-Everything is Node.js / TypeScript. MIT licensed.
-
-## Why a bridge instead of talking to OctoPrint directly?
-
-OctoPrint usually lives on a Raspberry Pi on a home/shop LAN that your n8n
-server can't reach, and its real-time feed is a SockJS socket that n8n's HTTP
-nodes can't subscribe to. `octoprint2n8n` sits next to the printer, holds the
-socket open, and does the translating:
+## How it fits together
 
 ```
-                         events (HTTPS POST, HMAC-signed)
-   ┌──────────────┐   ───────────────────────────────────▶   ┌──────────────┐
-   │  OctoPrint    │                                          │     n8n      │
-   │  (REST +      │        ┌───────────────────────┐         │              │
-   │   SockJS)     │◀──────▶│     octoprint2n8n     │         │  Trigger ◀── │  events in
-   │  on the LAN   │  API   │   (this bridge / the  │◀───────▶│  Action  ──▶ │  commands out
-   └──────────────┘  key   │    "client" container) │  Bearer └──────────────┘
-                            └───────────────────────┘
-        printer side                bridge                      automation side
+                         ┌───────────────────────────── n8n ─────────────────────────────┐
+                         │  OctoPrint Trigger node      OctoPrint action node    Queue +   │
+                         │  (events in)                 (commands out)           webhooks  │
+                         └───▲───────────────────────────────┬───────────────────▲─────┬───┘
+            events (HMAC POST)│                   commands (Bearer)│        jobs   │     │ status
+                              │                                    │      (poll)   │     │ (POST)
+                         ┌────┴─────────── octoprint2n8n ──────────┴────┐    ┌─────┴─────┴──────┐
+                         │  SockJS subscribe + REST poll → normalize     │    │ print-orchestrator│
+                         │  command proxy (allow-listed)                 │    │ Redis/BullMQ queue│
+                         └───────────────────┬───────────────────────────┘    │ slice → print →   │
+                                             │ OctoPrint API                   │ monitor + dashboard│
+                                             ▼                                 └─────────┬─────────┘
+                                       ┌──────────┐  ◄──────── upload + print + poll ─────┘
+                                       │ OctoPrint │  (on the printer's LAN)
+                                       │  + printer │
+                                       └──────────┘
 ```
 
-- **Events up:** the bridge subscribes to OctoPrint's push socket and polls its
-  REST API, normalizes everything into one event shape, and `POST`s it to the
-  **OctoPrint Trigger** node's webhook URL (optionally HMAC-signed).
-- **Commands down:** the **OctoPrint** action node calls the bridge's command
-  API (`Bearer`-authenticated), which proxies an allow-listed set of OctoPrint
-  REST calls. Your OctoPrint API key never leaves the bridge.
-
-> The bridge is optional for the command direction. If your n8n server *can*
-> reach OctoPrint directly, the action node also has a **Direct** mode that hits
-> the OctoPrint REST API itself — no bridge required for commands.
+- **Bridge (`octoprint2n8n`)** holds OctoPrint's SockJS feed open, normalizes
+  events, and POSTs them to the Trigger node's webhook; the action node sends
+  commands back through its allow-listed proxy. Your OctoPrint API key never
+  leaves the box.
+- **Orchestrator (`print-orchestrator`)** is the print-farm brain: it polls n8n
+  for queued jobs, slices each model, drives the print on OctoPrint, and posts
+  status back — independently of the bridge.
 
 ## Quick start
 
-### 1. Run the bridge next to your printer
+### A) Event bridge + nodes (OctoPrint ⇄ n8n)
 
+1. Run the bridge next to your printer:
+   ```bash
+   cp octoprint2n8n/.env.example octoprint2n8n/.env   # set OCTOPRINT_URL + OCTOPRINT_API_KEY
+   docker compose up -d --build
+   ```
+2. In n8n: **Settings → Community Nodes → Install** `n8n-nodes-octoprint`.
+3. Add an **OctoPrint Trigger** node, copy its Production webhook URL into the
+   bridge's `N8N_WEBHOOK_URL`, restart the bridge. Add an **OctoPrint** node to
+   send commands. (Full details in [`octoprint2n8n/`](octoprint2n8n/README.md)
+   and [`n8n-nodes-octoprint/`](n8n-nodes-octoprint/README.md).)
+
+### B) Print farm (queue → slice → print)
+
+Run on the box next to a printer:
 ```bash
-git clone https://github.com/amosroger91/n8n-2-octoPrint.git
-cd n8n-2-octoPrint
-cp octoprint2n8n/.env.example octoprint2n8n/.env
-# edit octoprint2n8n/.env — at minimum OCTOPRINT_URL + OCTOPRINT_API_KEY
-docker compose up -d --build
+cp print-orchestrator/.env.example print-orchestrator/.env   # OCTOPRINT_*, SLICER_*, N8N_*
+cd print-orchestrator && docker compose up -d --build
 ```
+It polls your n8n queue, slices each job, prints it, and reports progress. Open
+the dashboard at **http://localhost:4848**. See
+[`print-orchestrator/`](print-orchestrator/README.md) for the n8n + slicer
+contracts.
 
-Get an API key in OctoPrint under **Settings → API** (global key) or
-**Settings → Application Keys** (per-app key). Confirm the bridge is healthy:
+## Dashboard
 
-```bash
-curl http://localhost:5252/api/v1/health
-```
+The orchestrator serves a local **status dashboard** (printer state + live
+progress, queue depth, recent jobs, pipeline config) behind a **pluggable auth
+layer** — a built-in local username/password provider, with a clean interface
+for adding external OAuth/OIDC providers. See
+[print-orchestrator/README.md#dashboard](print-orchestrator/README.md#dashboard).
 
-### 2. Install the node package in n8n
+## Test without a printer
 
-In n8n: **Settings → Community Nodes → Install** and enter
-`n8n-nodes-octoprint`. (Or build from source — see
-[`n8n-nodes-octoprint/README.md`](n8n-nodes-octoprint/README.md).)
-
-### 3. Wire it up
-
-- **Receiving events:** add an **OctoPrint Trigger** node, copy its *Production*
-  webhook URL, and set it as `N8N_WEBHOOK_URL` in the bridge's `.env`. Restart
-  the bridge. Printer events now start your workflow.
-- **Sending commands:** add an **OctoPrint** node, create an *OctoPrint Bridge*
-  credential (the bridge URL + the same `BRIDGE_SHARED_SECRET`), and pick an
-  operation (start print, set temperature, cancel, …).
-
-A matching `BRIDGE_SHARED_SECRET` on both ends turns on HMAC-signed events and
-authenticates commands. Use HTTPS in front of both the bridge and n8n in
-production.
-
-## Testing without a printer
-
-No printer? This repo ships a **virtual OctoPrint** — `octoprint-emulator/` —
-that speaks the same REST + SockJS API and simulates a print job (temps ramp,
-progress 0 → 100 %, real `PrintStarted`/`PrintDone` events).
-
-Run the full chain (emulator → bridge → captured webhook + a command round-trip)
-with no Docker and no n8n:
+The repo ships a **virtual OctoPrint** and a full local stack, so you can try
+everything with no hardware:
 
 ```bash
-cd octoprint-emulator && npm install && npm run build && cd ..
-cd octoprint2n8n     && npm install && npm run build && cd ..
+# fast, offline: emulator → bridge
+cd octoprint-emulator && npm i && npm run build && cd ..
+cd octoprint2n8n     && npm i && npm run build && cd ..
 node scripts/e2e.mjs
-```
 
-Or watch it run continuously in Docker:
-
-```bash
-docker compose --profile demo up --build     # emulator prints on a loop
-# then point the bridge at it: OCTOPRINT_URL=http://octoprint-emulator:8080
-```
-
-### Full real stack (OctoPrint + n8n, no printer)
-
-For end-to-end fidelity there's a one-command demo that runs **real OctoPrint**
-(with its built-in Virtual Printer), the bridge, and **real n8n** with the actual
-OctoPrint Trigger node — then you watch print events arrive as workflow
-executions:
-
-```bash
+# the whole thing in Docker: real OctoPrint (Virtual Printer) + bridge + n8n
 docker compose -f demo/docker-compose.yml up -d --build
-bash demo/setup.sh     # installs the node + activates the workflow in n8n
-bash demo/print.sh     # prints on the virtual printer
-# open http://localhost:5678 and watch the Executions tab
+bash demo/setup.sh && bash demo/print.sh   # watch n8n's Executions tab
 ```
 
-See [`demo/README.md`](demo/README.md) for details and the `scripts/verify-*.mjs`
-checks (emulator, real OctoPrint, and full-stack-through-n8n).
+More in [`demo/`](demo/README.md). The `scripts/verify-*.mjs` checks cover the
+emulator, real OctoPrint, and the full stack through n8n.
+
+## Security model
+
+- **Events → n8n** are HMAC-signed with a shared secret; the Trigger node
+  verifies them.
+- **Commands → printer** go through the bridge's Bearer-authenticated,
+  allow-listed proxy — the OctoPrint API key stays on the bridge.
+- **The dashboard** requires login (scrypt-hashed local credentials, HMAC
+  session cookies) and is auth-provider-pluggable.
+- Run everything behind HTTPS in production. `.env` files are git-ignored — keep
+  secrets there.
+
+## Why not dockerize OctoPrint itself?
+
+OctoPrint needs direct USB/serial access to the printer, which is fiddly to pass
+through a container reliably. Run OctoPrint the normal way (OctoPi, native, or —
+for testing — its built-in **Virtual Printer** plugin) and point these tools at
+it.
 
 ## Repository layout
 
@@ -126,22 +131,18 @@ checks (emulator, real OctoPrint, and full-stack-through-n8n).
 n8n-2-octoPrint/
 ├── n8n-nodes-octoprint/   # the n8n community node package (Trigger + Action)
 ├── octoprint2n8n/         # the bridge / client (Docker image)
-├── print-orchestrator/    # the print-farm worker (n8n queue -> slice -> print)
+├── print-orchestrator/    # the print-farm worker + dashboard (Docker image)
 ├── octoprint-emulator/    # a virtual OctoPrint for testing without a printer
 ├── demo/                  # one-command full stack (OctoPrint + bridge + n8n)
 ├── scripts/               # e2e + real-OctoPrint + full-stack verification
 └── .github/workflows/     # CI: builds all packages, runs e2e, builds images
 ```
 
-See each subfolder's README for the full env-var reference, the event schema,
-and the list of supported operations.
+## Contributing
 
-## A note on dockerizing OctoPrint itself
-
-This project deliberately does **not** containerize OctoPrint. OctoPrint needs
-direct access to the printer's USB/serial device, and passing that through a
-container reliably across hosts is fiddle-prone. Run OctoPrint the normal way
-(OctoPi image, native install, etc.) and point the bridge at it.
+Issues and PRs welcome — see [CONTRIBUTING.md](CONTRIBUTING.md) and the
+[Code of Conduct](CODE_OF_CONDUCT.md). For security reports, see
+[SECURITY.md](SECURITY.md).
 
 ## License
 

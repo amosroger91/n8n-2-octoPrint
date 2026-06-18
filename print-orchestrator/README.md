@@ -29,6 +29,26 @@ cp .env.example .env     # fill in OCTOPRINT_URL/KEY, SLICER_*, N8N_*
 docker compose up -d --build
 ```
 
+## Dashboard
+
+A local status dashboard runs on **http://localhost:4848** (set `DASHBOARD_PORT`).
+It shows the printer state + live progress, the queue (waiting/active/completed/
+failed), the pipeline config, and recent jobs — auto-refreshing every 3s.
+
+It's behind a **pluggable auth layer**:
+
+- **Local provider** (built in): username/password from `DASHBOARD_USERNAME` /
+  `DASHBOARD_PASSWORD` (scrypt-hashed, HMAC-signed session cookies). If
+  `DASHBOARD_PASSWORD` is blank, a random one is generated and printed in the
+  logs on startup. Set `SESSION_SECRET` to keep logins across restarts.
+- **External providers**: implement the `OAuthProvider` interface
+  (`src/auth/types.ts`) and `registry.register(...)` it in `buildAuth()`
+  (`src/index.ts`). The login page and `/auth/<id>` + `/auth/<id>/callback`
+  routes wire up automatically.
+
+`GET /api/status` returns the same data as JSON (auth required); `GET /healthz`
+is unauthenticated.
+
 ## Configuration
 
 | Variable | Required | Description |
@@ -85,7 +105,8 @@ With Redis up and an OctoPrint reachable (the repo's virtual printer works):
 
 ```bash
 npm install && npm run build
-node stage-a.mjs    # enqueues a pre-sliced job and prints it
+node stage-a.mjs        # enqueues a pre-sliced job and prints it
+node dashboard-test.mjs # exercises the dashboard login + status endpoints
 ```
 
 ## License

@@ -14,8 +14,8 @@ export interface Slicer {
 /**
  * Posts an STL to the hosted slice API and returns gcode + stats.
  *
- * NOTE: the exact request/response shape of slicer.wellspringstudiollc.com is
- * not yet confirmed — this implementation is deliberately liberal:
+ * The exact request/response shape of a slice API varies, so this is
+ * deliberately liberal:
  *   - request: multipart with `file` (the STL) + `profile` + `material` fields
  *   - response: either raw gcode (any non-JSON body) OR JSON with one of
  *     `gcodeBase64` / `gcode` / `gcodeUrl`, plus optional `stats`.

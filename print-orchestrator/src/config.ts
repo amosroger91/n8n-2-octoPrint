@@ -24,6 +24,12 @@ export interface Config {
 	printPollIntervalMs: number;
 	printTimeoutMs: number;
 
+	dashboardEnabled: boolean;
+	dashboardPort: number;
+	dashboardUsername: string;
+	dashboardPassword: string | null;
+	sessionSecret: string | null;
+
 	logLevel: LogLevel;
 }
 
@@ -76,6 +82,12 @@ export function loadConfig(): Config {
 		concurrency: int('CONCURRENCY', 1),
 		printPollIntervalMs: int('PRINT_POLL_INTERVAL_MS', 5000),
 		printTimeoutMs: int('PRINT_TIMEOUT_MS', 86_400_000),
+
+		dashboardEnabled: bool('DASHBOARD_ENABLED', true),
+		dashboardPort: int('DASHBOARD_PORT', 4848),
+		dashboardUsername: str('DASHBOARD_USERNAME', 'admin'),
+		dashboardPassword: str('DASHBOARD_PASSWORD') || null,
+		sessionSecret: str('SESSION_SECRET') || null,
 
 		logLevel,
 	};
