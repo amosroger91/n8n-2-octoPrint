@@ -26,32 +26,40 @@ You can use either half on its own.
 
 ## How it fits together
 
-```
-                         ┌───────────────────────────── n8n ─────────────────────────────┐
-                         │  OctoPrint Trigger node      OctoPrint action node    Queue +   │
-                         │  (events in)                 (commands out)           webhooks  │
-                         └───▲───────────────────────────────┬───────────────────▲─────┬───┘
-            events (HMAC POST)│                   commands (Bearer)│        jobs   │     │ status
-                              │                                    │      (poll)   │     │ (POST)
-                         ┌────┴─────────── octoprint2n8n ──────────┴────┐    ┌─────┴─────┴──────┐
-                         │  SockJS subscribe + REST poll → normalize     │    │ print-orchestrator│
-                         │  command proxy (allow-listed)                 │    │ Redis/BullMQ queue│
-                         └───────────────────┬───────────────────────────┘    │ slice → print →   │
-                                             │ OctoPrint API                   │ monitor + dashboard│
-                                             ▼                                 └─────────┬─────────┘
-                                       ┌──────────┐  ◄──────── upload + print + poll ─────┘
-                                       │ OctoPrint │  (on the printer's LAN)
-                                       │  + printer │
-                                       └──────────┘
+**One n8n instance** holds the form + queue; **each print site** runs its own
+orchestrator (and optionally the bridge) next to a printer. Add printers by
+adding sites — they all claim from the same queue.
+
+```mermaid
+flowchart TB
+    subgraph N8N["n8n · self-hosted (one instance)"]
+        FORM["Web form + print queue<br/>(jobs · status)"]
+        TRIG["OctoPrint Trigger node"]
+        ACT["OctoPrint action node"]
+    end
+
+    subgraph SITE["Print site · one per printer (×N)"]
+        ORCH["print-orchestrator<br/>Redis queue · slice · print · dashboard"]
+        BR["octoprint2n8n bridge"]
+        OCTO["OctoPrint + printer"]
+    end
+
+    FORM -- "claim queued jobs" --> ORCH
+    ORCH -- "status + progress" --> FORM
+    ORCH -- "upload + print" --> OCTO
+    BR -- "events (HMAC)" --> TRIG
+    ACT -- "commands (Bearer)" --> BR
+    BR <-- "REST + SockJS" --> OCTO
 ```
 
-- **Bridge (`octoprint2n8n`)** holds OctoPrint's SockJS feed open, normalizes
-  events, and POSTs them to the Trigger node's webhook; the action node sends
-  commands back through its allow-listed proxy. Your OctoPrint API key never
-  leaves the box.
-- **Orchestrator (`print-orchestrator`)** is the print-farm brain: it polls n8n
-  for queued jobs, slices each model, drives the print on OctoPrint, and posts
-  status back — independently of the bridge.
+- **Orchestrator (`print-orchestrator`)** is the print-farm brain: it claims
+  queued jobs from n8n, slices each model, drives the print on OctoPrint, and
+  posts status back. Run **one per printer** — each has its own `PRINTER_ID` and
+  claims jobs independently.
+- **Bridge (`octoprint2n8n`)** is the event/command path: it holds OctoPrint's
+  SockJS feed open, POSTs normalized events to the Trigger node, and relays the
+  action node's commands back through its allow-listed proxy. Your OctoPrint API
+  key never leaves the box.
 
 ## Quick start
 

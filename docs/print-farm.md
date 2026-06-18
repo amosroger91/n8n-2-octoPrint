@@ -11,22 +11,14 @@ printers can follow it.
 
 ## What it does for a print farm
 
-```
-   a person ─fills out─►  n8n web form
-                                │  (writes a row: status = "queued")
-                                ▼
-                       n8n print-queue  ◄── status updates ──┐
-                                │                            │
-                 (orchestrator polls "give me queued jobs")  │
-                                ▼                            │
-                       print-orchestrator (on-site)          │
-                       1. claim the job ────────────────────►│
-                       2. fetch the STL                       │
-                       3. slice it (your slicer)              │
-                       4. upload + print on OctoPrint ───────►│  progress
-                       5. watch to completion ───────────────►│  done / failed
-                                ▼
-                          the printer prints
+```mermaid
+flowchart TB
+    person["👤 person"] -->|fills out| form["n8n web form"]
+    form -->|"writes a row · status = queued"| queue[("n8n print-queue")]
+    queue -.->|"poll: any queued jobs?"| orch
+    orch["print-orchestrator · on-site<br/>claim → fetch STL → slice → upload + print → monitor"]
+    orch -->|"claim · progress · done/failed"| queue
+    orch -->|"upload + print"| printer["🖨️ printer via OctoPrint"]
 ```
 
 You get:
