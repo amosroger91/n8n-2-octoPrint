@@ -1,8 +1,11 @@
-# Runs the print-orchestrator + its Redis on the box next to your printer.
+# Runs a full print site next to your printer: the orchestrator, its Redis, and
+# the headless-OrcaSlicer companion — one command.
 #
-#   cp .env.example .env     # set OCTOPRINT_URL/KEY, SLICER_*, N8N_*
+#   cp .env.example .env     # set OCTOPRINT_URL/KEY, N8N_*, S3_* (SLICER_URL optional)
 #   docker compose up -d --build
 #
+# By default the orchestrator slices via the bundled `slicer` service. To use an
+# external slice endpoint instead, set SLICER_URL in .env and it takes over.
 name: print-orchestrator
 
 services:
@@ -13,17 +16,32 @@ services:
     volumes:
       - redis_data:/data
 
+  slicer:
+    build: ../slicer
+    image: n8n2octo-slicer
+    container_name: print-slicer
+    restart: unless-stopped
+    # Headless OrcaSlicer + a POST /slice API (STL/3MF -> gcode). No ports are
+    # published — only the orchestrator reaches it over the compose network.
+    volumes:
+      - slicer_data:/data # OrcaSlicer datadir (config), persisted across restarts
+
   orchestrator:
     build: .
     container_name: print-orchestrator
     restart: unless-stopped
     depends_on:
-      - redis
+      redis:
+        condition: service_started
+      slicer:
+        condition: service_healthy
     env_file:
       - .env
     environment:
       # use the bundled redis (overrides REDIS_URL from .env)
       - REDIS_URL=redis://redis:6379
+      # use the bundled slicer unless .env overrides SLICER_URL with your own
+      - SLICER_URL=${SLICER_URL:-http://slicer:8080/slice}
     ports:
       - "4848:4848" # status dashboard
     # OCTOPRINT_URL (in .env) should be the printer's LAN address, e.g.
@@ -31,3 +49,4 @@ services:
 
 volumes:
   redis_data:
+  slicer_data:

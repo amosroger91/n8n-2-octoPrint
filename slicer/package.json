@@ -1,0 +1,15 @@
+{
+  "name": "slicer",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Headless OrcaSlicer slice API companion (STL/3MF -> gcode) for n8n-2-octoPrint print sites",
+  "main": "server.mjs",
+  "scripts": {
+    "start": "node server.mjs"
+  },
+  "license": "MIT",
+  "dependencies": {
+    "busboy": "^1.6.0"
+  }
+}

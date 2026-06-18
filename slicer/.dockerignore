@@ -1,0 +1,6 @@
+node_modules
+npm-debug.log
+*.gcode
+*.stl
+.env
+README.md
