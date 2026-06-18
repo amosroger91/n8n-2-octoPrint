@@ -1,19 +1,20 @@
 {
-  "name": "octoprint2n8n",
+  "name": "octoprint-emulator",
   "version": "0.1.0",
-  "description": "Bridge that streams OctoPrint events to n8n and relays n8n commands back to OctoPrint.",
+  "description": "A virtual OctoPrint instance (REST + SockJS) for testing n8n-2-octoPrint without a real printer.",
   "keywords": [
     "octoprint",
-    "n8n",
+    "emulator",
+    "virtual-printer",
     "3d-printing",
-    "bridge"
+    "testing"
   ],
   "license": "MIT",
   "homepage": "https://github.com/amosroger91/n8n-2-octoPrint",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/amosroger91/n8n-2-octoPrint.git",
-    "directory": "octoprint2n8n"
+    "directory": "octoprint-emulator"
   },
   "main": "dist/index.js",
   "scripts": {
@@ -22,12 +23,11 @@
     "dev": "tsc && node dist/index.js"
   },
   "dependencies": {
-    "dotenv": "^16.4.5",
-    "ws": "^8.18.0"
+    "sockjs": "^0.3.24"
   },
   "devDependencies": {
     "@types/node": "^20.11.0",
-    "@types/ws": "^8.5.12",
+    "@types/sockjs": "^0.3.36",
     "typescript": "^5.4.0"
   },
   "engines": {

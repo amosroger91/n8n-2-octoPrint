@@ -19,6 +19,24 @@ services:
     # network_mode: host
 
   # ---------------------------------------------------------------------------
+  # Virtual OctoPrint — test without a printer:  docker compose --profile demo up
+  # To point the bridge at it, set in octoprint2n8n/.env:
+  #   OCTOPRINT_URL=http://octoprint-emulator:8080
+  # (AUTO_DEMO makes it print on a loop so there's always activity.)
+  # ---------------------------------------------------------------------------
+  octoprint-emulator:
+    build: ./octoprint-emulator
+    image: octoprint-emulator:latest
+    container_name: octoprint-emulator
+    profiles: ["demo"]
+    restart: unless-stopped
+    environment:
+      - AUTO_DEMO=true
+      - PRINT_DURATION_SEC=120
+    ports:
+      - "8080:8080"
+
+  # ---------------------------------------------------------------------------
   # Optional: a local n8n for testing. Start it with:
   #   docker compose --profile testing up -d
   # ---------------------------------------------------------------------------

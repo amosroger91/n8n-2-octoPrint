@@ -80,14 +80,42 @@ A matching `BRIDGE_SHARED_SECRET` on both ends turns on HMAC-signed events and
 authenticates commands. Use HTTPS in front of both the bridge and n8n in
 production.
 
+## Testing without a printer
+
+No printer? This repo ships a **virtual OctoPrint** — `octoprint-emulator/` —
+that speaks the same REST + SockJS API and simulates a print job (temps ramp,
+progress 0 → 100 %, real `PrintStarted`/`PrintDone` events).
+
+Run the full chain (emulator → bridge → captured webhook + a command round-trip)
+with no Docker and no n8n:
+
+```bash
+cd octoprint-emulator && npm install && npm run build && cd ..
+cd octoprint2n8n     && npm install && npm run build && cd ..
+node scripts/e2e.mjs
+```
+
+Or watch it run continuously in Docker:
+
+```bash
+docker compose --profile demo up --build     # emulator prints on a loop
+# then point the bridge at it: OCTOPRINT_URL=http://octoprint-emulator:8080
+```
+
+For full fidelity, point the bridge at real OctoPrint running its built-in
+**Virtual Printer** plugin instead — same API, no hardware. See
+[`octoprint-emulator/README.md`](octoprint-emulator/README.md).
+
 ## Repository layout
 
 ```
 n8n-2-octoPrint/
 ├── n8n-nodes-octoprint/   # the n8n community node package (Trigger + Action)
 ├── octoprint2n8n/         # the bridge / client (Docker image)
-├── docker-compose.yml     # runs the bridge (+ optional n8n for testing)
-└── .github/workflows/     # CI: builds both packages + the Docker image
+├── octoprint-emulator/    # a virtual OctoPrint for testing without a printer
+├── scripts/e2e.mjs        # end-to-end smoke test (emulator + bridge)
+├── docker-compose.yml     # runs the bridge (+ emulator/n8n profiles)
+└── .github/workflows/     # CI: builds all packages, runs e2e, builds images
 ```
 
 See each subfolder's README for the full env-var reference, the event schema,

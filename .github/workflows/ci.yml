@@ -12,7 +12,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        dir: [n8n-nodes-octoprint, octoprint2n8n]
+        dir: [n8n-nodes-octoprint, octoprint2n8n, octoprint-emulator]
     defaults:
       run:
         working-directory: ${{ matrix.dir }}
@@ -24,9 +24,26 @@ jobs:
       - run: npm install
       - run: npm run build
 
-  docker:
-    name: docker build (octoprint2n8n)
+  e2e:
+    name: end-to-end (emulator + bridge)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - run: docker build -t octoprint2n8n:ci ./octoprint2n8n
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: npm install && npm run build
+        working-directory: octoprint-emulator
+      - run: npm install && npm run build
+        working-directory: octoprint2n8n
+      - run: node scripts/e2e.mjs
+
+  docker:
+    name: docker build
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        ctx: [octoprint2n8n, octoprint-emulator]
+    steps:
+      - uses: actions/checkout@v4
+      - run: docker build -t ${{ matrix.ctx }}:ci ./${{ matrix.ctx }}
