@@ -1,0 +1,55 @@
+# Full local demo: real OctoPrint (virtual printer) -> octoprint2n8n bridge -> n8n.
+#
+#   1. docker compose -f demo/docker-compose.yml up -d --build
+#   2. bash demo/setup.sh        # install the node + activate the workflow in n8n
+#   3. bash demo/print.sh        # start a print on the virtual printer
+#   4. open http://localhost:5678  (create the owner account, watch Executions)
+#
+# Tear down:  docker compose -f demo/docker-compose.yml down -v
+name: octoprint2n8n-demo
+
+services:
+  octoprint:
+    image: octoprint/octoprint:latest
+    container_name: demo-octoprint
+    restart: unless-stopped
+    ports:
+      - "5005:5000"
+    volumes:
+      # Boots straight into an Operational virtual printer (no wizard, known API key).
+      - ./octoprint/config.yaml:/octoprint/octoprint/config.yaml
+
+  n8n:
+    image: docker.n8n.io/n8nio/n8n:latest
+    container_name: demo-n8n
+    restart: unless-stopped
+    ports:
+      - "5678:5678"
+    environment:
+      - N8N_SECURE_COOKIE=false
+      - WEBHOOK_URL=http://localhost:5678/
+    extra_hosts:
+      # lets the workflow's HTTP Request node reach a capture script on the host
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - n8n_demo_data:/home/node/.n8n
+
+  bridge:
+    build: ../octoprint2n8n
+    container_name: demo-bridge
+    restart: unless-stopped
+    depends_on:
+      - octoprint
+      - n8n
+    environment:
+      - OCTOPRINT_URL=http://octoprint:5000
+      - OCTOPRINT_API_KEY=DEMOKEY00000000000000000000000000
+      - N8N_WEBHOOK_URL=http://n8n:5678/webhook/octoprint
+      - BRIDGE_SHARED_SECRET=demo-secret
+      - POLL_INTERVAL_MS=10000
+      - PROGRESS_DELTA_PCT=10
+    ports:
+      - "5252:5252"
+
+volumes:
+  n8n_demo_data:

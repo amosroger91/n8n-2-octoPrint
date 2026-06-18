@@ -1,0 +1,38 @@
+accessControl:
+  salt: n8n2octoprint-demo-salt-change-me
+api:
+  key: DEMOKEY00000000000000000000000000
+plugins:
+  announcements:
+    _config_version: 1
+  classicwebcam:
+    _config_version: 1
+  discovery:
+    upnpUuid: c162e8af-2591-4353-8926-766baaa65cb9
+  errortracking:
+    unique_id: cc42ae24-e3e4-4600-84a2-8fb63299e837
+  gcodeviewer:
+    _config_version: 1
+  softwareupdate:
+    _config_version: 9
+  tracking:
+    unique_id: b132d237-932c-4804-a02d-bc7efa28fa68
+  virtual_printer:
+    _config_version: 1
+    enabled: true
+printerProfiles:
+  default: _default
+serial:
+  autoconnect: true
+  baudrate: 115200
+  port: VIRTUAL
+server:
+  firstRun: false
+  secretKey: ed12f6328760fd9c528c4f64d74db4a766fc2e6b1f854222bfc0eb508f9089bc
+  seenWizards:
+    backup: 1
+    corewizard: 4
+    cura: null
+    softwareupdate: null
+webcam:
+  webcamEnabled: false

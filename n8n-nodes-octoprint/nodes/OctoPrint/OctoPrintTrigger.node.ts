@@ -45,6 +45,9 @@ export class OctoPrintTrigger implements INodeType {
 				httpMethod: 'POST',
 				responseMode: 'onReceived',
 				path: '={{$parameter["path"]}}',
+				// Use the path verbatim (e.g. /webhook/octoprint) instead of
+				// prefixing it with the node's webhookId.
+				isFullPath: true,
 			},
 		],
 		properties: [

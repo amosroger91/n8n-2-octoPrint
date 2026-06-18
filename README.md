@@ -102,9 +102,22 @@ docker compose --profile demo up --build     # emulator prints on a loop
 # then point the bridge at it: OCTOPRINT_URL=http://octoprint-emulator:8080
 ```
 
-For full fidelity, point the bridge at real OctoPrint running its built-in
-**Virtual Printer** plugin instead — same API, no hardware. See
-[`octoprint-emulator/README.md`](octoprint-emulator/README.md).
+### Full real stack (OctoPrint + n8n, no printer)
+
+For end-to-end fidelity there's a one-command demo that runs **real OctoPrint**
+(with its built-in Virtual Printer), the bridge, and **real n8n** with the actual
+OctoPrint Trigger node — then you watch print events arrive as workflow
+executions:
+
+```bash
+docker compose -f demo/docker-compose.yml up -d --build
+bash demo/setup.sh     # installs the node + activates the workflow in n8n
+bash demo/print.sh     # prints on the virtual printer
+# open http://localhost:5678 and watch the Executions tab
+```
+
+See [`demo/README.md`](demo/README.md) for details and the `scripts/verify-*.mjs`
+checks (emulator, real OctoPrint, and full-stack-through-n8n).
 
 ## Repository layout
 

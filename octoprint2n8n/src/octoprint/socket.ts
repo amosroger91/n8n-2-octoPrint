@@ -101,19 +101,27 @@ export class OctoPrintSocket {
 					this.sendMessage(ws, { throttle: this.cfg.socketThrottle });
 				}
 			} else if (type === 'a') {
-				let messages: string[];
+				let messages: unknown[];
 				try {
 					messages = JSON.parse(frame.slice(1));
 				} catch {
 					return;
 				}
 				for (const raw of messages) {
-					let msg: Record<string, any>;
-					try {
-						msg = JSON.parse(raw);
-					} catch {
-						continue;
+					// Real OctoPrint (sockjs-tornado) embeds JSON objects directly in the
+					// array; the SockJS spec / node `sockjs` lib wrap each in a JSON string.
+					// Accept both so the bridge works against either.
+					let msg: Record<string, any> | null = null;
+					if (typeof raw === 'string') {
+						try {
+							msg = JSON.parse(raw);
+						} catch {
+							msg = null;
+						}
+					} else if (raw && typeof raw === 'object') {
+						msg = raw as Record<string, any>;
 					}
+					if (!msg) continue;
 					for (const key of Object.keys(msg)) {
 						try {
 							this.onMessage(key, msg[key]);
